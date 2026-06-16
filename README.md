@@ -10,6 +10,12 @@ A small Windows always-on-top traffic light for WorkBuddy.
 - Windows PowerShell 5.1
 - WorkBuddy session logs in JSONL format
 
+## Release
+
+- 用户可以直接从 GitHub Releases 页面下载最新版本。
+- 下载后解压或直接运行内置的 PowerShell 脚本即可使用。
+- 如果你只是想快速安装或测试，不需要克隆完整仓库。
+
 ## Session Directory
 
 The monitor reads JSONL files under:
