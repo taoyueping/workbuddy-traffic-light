@@ -241,7 +241,7 @@ function Get-WorkBuddyLogTaskState {
         [Parameter(Mandatory)]
         [string]$WorkBuddyHome,
 
-        [int]$MaxLogFiles = 10,
+        [int]$MaxLogFiles = 4,
         [int]$TaskWindowMinutes = 120
     )
 
@@ -265,7 +265,9 @@ function Get-WorkBuddyLogTaskState {
     )
 
     foreach ($file in $logFiles) {
-        foreach ($line in (Get-TailJsonLines -Path $file.FullName)) {
+        $lines = @(Get-TailJsonLines -Path $file.FullName -MaxBytes 262144)
+        for ($index = $lines.Count - 1; $index -ge 0; $index--) {
+            $line = $lines[$index]
             if ($line -notmatch '\[SessionManager\] task state transition') {
                 continue
             }
@@ -295,7 +297,12 @@ function Get-WorkBuddyLogTaskState {
             if ($lineEvent -ge $latestEvent) {
                 $latestEvent = $lineEvent
                 $latestState = $lineState
+                break
             }
+        }
+
+        if ($latestState) {
+            break
         }
     }
 

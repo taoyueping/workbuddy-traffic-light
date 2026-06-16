@@ -169,7 +169,7 @@ $exitItem.Add_Click({
 $window.ContextMenu = $menu
 
 $statusTimer = [Windows.Threading.DispatcherTimer]::new()
-$statusTimer.Interval = [TimeSpan]::FromMilliseconds(800)
+$statusTimer.Interval = [TimeSpan]::FromMilliseconds(250)
 $statusTimer.Add_Tick({
     try {
         $state = Get-WorkBuddyTrafficState
