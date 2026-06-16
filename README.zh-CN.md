@@ -11,6 +11,20 @@
 - 绿灯：当前观察到的 WorkBuddy 任务均已完成。
 - 红灯：没有检测到可读取的 WorkBuddy 会话，或状态读取失败。
 
+## 简单使用
+
+1. 下载或克隆本仓库。
+2. 在项目目录中打开 PowerShell。
+3. 运行启动命令：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-traffic-light.ps1
+```
+
+红绿灯会显示在桌面右上角附近。按住鼠标左键可以拖动位置；右键点击红绿灯，选择 `Exit` 即可退出。
+
+如果红灯一直亮，请确认 WorkBuddy 正在把 JSONL 会话文件写入 `%WORKBUDDY_HOME%\sessions` 或 `%USERPROFILE%\.workbuddy\sessions`。
+
 ## 运行要求
 
 - Windows 10 或更高版本

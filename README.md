@@ -33,6 +33,20 @@ If `WORKBUDDY_HOME` is not set, it falls back to:
 
 The monitor is read-only. It does not edit sessions, approve commands, or send data over the network.
 
+## Quick Start
+
+1. Download or clone this repository.
+2. Open PowerShell in the project directory.
+3. Run the start command:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-traffic-light.ps1
+```
+
+The traffic light appears near the top-right corner of the desktop. Drag it with the left mouse button to move it. Right-click the light and choose `Exit` to close it.
+
+If the light stays red, make sure WorkBuddy is writing JSONL session files under `%WORKBUDDY_HOME%\sessions` or `%USERPROFILE%\.workbuddy\sessions`.
+
 ## Scripts
 
 ```powershell
