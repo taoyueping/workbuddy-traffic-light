@@ -2,8 +2,6 @@
 
 A small Windows always-on-top traffic light for WorkBuddy.
 
-![WorkBuddy Traffic Light preview](assets/workbuddy-traffic-light-preview.png)
-
 [中文说明](README.zh-CN.md)
 
 ## Requirements
