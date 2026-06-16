@@ -29,11 +29,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-traffic-
 
 - Windows 10 或更高版本
 - Windows PowerShell 5.1
-- WorkBuddy 会话日志为 JSONL 格式
+- WorkBuddy 会话文件位于 `%USERPROFILE%\.workbuddy\sessions`
 
 ## 会话目录
 
-程序默认读取：
+程序默认读取 WorkBuddy 会话文件：
 
 ```text
 %WORKBUDDY_HOME%\sessions
@@ -44,6 +44,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-traffic-
 ```text
 %USERPROFILE%\.workbuddy\sessions
 ```
+
+当前 WorkBuddy 桌面版会在这里写入原生 `*.json` 心跳会话文件。程序也兼容存在时的 Codex 风格 `*.jsonl` 事件日志。
 
 ## 启动和关闭
 

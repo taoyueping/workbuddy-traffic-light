@@ -123,6 +123,19 @@ try {
     Write-Records -Records @($taskStarted, $taskComplete)
     Assert-State -Expected "complete"
 
+    Remove-Item -LiteralPath $sessionFile -Force
+    $nativeSessionFile = Join-Path $testRoot "sessions\$PID.json"
+    @{
+        pid = $PID
+        lastHeartbeat = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        sessionId = "interactive-$PID"
+        kind = "interactive"
+        mode = "local"
+        updatedAt = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $nativeSessionFile -Encoding UTF8
+
+    Assert-State -Expected "complete"
+
     Write-Output "Status engine tests passed."
 }
 finally {

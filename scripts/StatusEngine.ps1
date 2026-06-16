@@ -161,9 +161,77 @@ function Get-WorkBuddySessionState {
 
     [pscustomobject]@{
         Path = $File.FullName
+        Detected = $true
         Active = $active
         Approval = $active -and $pendingCalls.Count -gt 0
         Error = $errorState
+        LastEvent = $lastEvent
+    }
+}
+
+function ConvertFrom-UnixMilliseconds {
+    param(
+        [Parameter(Mandatory)]
+        [int64]$Milliseconds
+    )
+
+    return [DateTimeOffset]::FromUnixTimeMilliseconds($Milliseconds).UtcDateTime
+}
+
+function Get-WorkBuddyNativeSessionState {
+    param(
+        [Parameter(Mandatory)]
+        [System.IO.FileInfo]$File,
+
+        [int]$HeartbeatWindowMinutes = 5
+    )
+
+    $lastEvent = $File.LastWriteTimeUtc
+    $processActive = $false
+
+    try {
+        $session = Get-Content -LiteralPath $File.FullName -Raw | ConvertFrom-Json
+    }
+    catch {
+        return [pscustomobject]@{
+            Path = $File.FullName
+            Detected = $false
+            Active = $false
+            Approval = $false
+            Error = $true
+            LastEvent = $lastEvent
+        }
+    }
+
+    if ($session.lastHeartbeat) {
+        try {
+            $lastEvent = ConvertFrom-UnixMilliseconds -Milliseconds ([int64]$session.lastHeartbeat)
+        }
+        catch {
+            # Keep the file timestamp when heartbeat parsing fails.
+        }
+    }
+    elseif ($session.updatedAt) {
+        try {
+            $lastEvent = ConvertFrom-UnixMilliseconds -Milliseconds ([int64]$session.updatedAt)
+        }
+        catch {
+            # Keep the file timestamp when updatedAt parsing fails.
+        }
+    }
+
+    if ($session.pid) {
+        $processActive = $null -ne (Get-Process -Id ([int]$session.pid) -ErrorAction SilentlyContinue)
+    }
+
+    $recentHeartbeat = $lastEvent -ge ([datetime]::UtcNow.AddMinutes(-$HeartbeatWindowMinutes))
+
+    [pscustomobject]@{
+        Path = $File.FullName
+        Detected = $processActive -or $recentHeartbeat
+        Active = $false
+        Approval = $false
+        Error = -not ($processActive -or $recentHeartbeat)
         LastEvent = $lastEvent
     }
 }
@@ -186,11 +254,17 @@ function Get-WorkBuddyTrafficState {
         }
     }
 
-    $files = @(
+    $jsonlFiles = @(
         Get-ChildItem -LiteralPath $sessionsRoot -Filter "*.jsonl" -File -Recurse -ErrorAction SilentlyContinue |
             Sort-Object LastWriteTimeUtc -Descending |
             Select-Object -First $MaxSessions
     )
+    $nativeFiles = @(
+        Get-ChildItem -LiteralPath $sessionsRoot -Filter "*.json" -File -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First $MaxSessions
+    )
+    $files = @($jsonlFiles + $nativeFiles | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First $MaxSessions)
 
     if ($files.Count -eq 0) {
         return [pscustomobject]@{
@@ -207,12 +281,24 @@ function Get-WorkBuddyTrafficState {
     $newestWrite = $files[0].LastWriteTimeUtc
     $cutoff = $newestWrite.AddMinutes(-$ConcurrentWindowMinutes)
     $relevantFiles = @($files | Where-Object { $_.LastWriteTimeUtc -ge $cutoff })
-    $states = @($relevantFiles | ForEach-Object { Get-WorkBuddySessionState -File $_ })
+    $states = @($relevantFiles | ForEach-Object {
+        if ($_.Extension -eq ".json") {
+            Get-WorkBuddyNativeSessionState -File $_
+        }
+        else {
+            Get-WorkBuddySessionState -File $_
+        }
+    })
+    $detectedCount = @($states | Where-Object Detected).Count
     $approvalCount = @($states | Where-Object Approval).Count
     $activeCount = @($states | Where-Object Active).Count
     $errorCount = @($states | Where-Object Error).Count
 
-    if ($approvalCount -gt 0) {
+    if ($detectedCount -eq 0) {
+        $state = "offline"
+        $label = "WorkBuddy not detected"
+    }
+    elseif ($approvalCount -gt 0) {
         $state = "approval"
         $label = "Approval needed"
     }
@@ -226,7 +312,7 @@ function Get-WorkBuddyTrafficState {
     }
     else {
         $state = "complete"
-        $label = "Run complete"
+        $label = "WorkBuddy ready"
     }
 
     return [pscustomobject]@{

@@ -8,7 +8,7 @@ A small Windows always-on-top traffic light for WorkBuddy.
 
 - Windows 10 or later
 - Windows PowerShell 5.1
-- WorkBuddy session logs in JSONL format
+- WorkBuddy session files under `%USERPROFILE%\.workbuddy\sessions`
 
 ## Release
 
@@ -18,7 +18,7 @@ A small Windows always-on-top traffic light for WorkBuddy.
 
 ## Session Directory
 
-The monitor reads JSONL files under:
+The monitor reads WorkBuddy session files under:
 
 ```text
 %WORKBUDDY_HOME%\sessions
@@ -29,6 +29,8 @@ If `WORKBUDDY_HOME` is not set, it falls back to:
 ```text
 %USERPROFILE%\.workbuddy\sessions
 ```
+
+Current WorkBuddy desktop builds write native `*.json` heartbeat session files there. The monitor also supports Codex-style `*.jsonl` event logs when present.
 
 ## Lights
 
@@ -51,7 +53,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-traffic-
 
 The traffic light appears near the top-right corner of the desktop. Drag it with the left mouse button to move it. Right-click the light and choose `Exit` to close it.
 
-If the light stays red, make sure WorkBuddy is writing JSONL session files under `%WORKBUDDY_HOME%\sessions` or `%USERPROFILE%\.workbuddy\sessions`.
+If the light stays red, make sure WorkBuddy is running and writing session files under `%WORKBUDDY_HOME%\sessions` or `%USERPROFILE%\.workbuddy\sessions`.
 
 ## Scripts
 
