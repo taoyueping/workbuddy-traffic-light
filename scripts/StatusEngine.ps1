@@ -268,16 +268,21 @@ function Get-WorkBuddyLogTaskState {
         $lines = @(Get-TailJsonLines -Path $file.FullName -MaxBytes 262144)
         for ($index = $lines.Count - 1; $index -ge 0; $index--) {
             $line = $lines[$index]
-            if ($line -notmatch '\[SessionManager\] task state transition') {
-                continue
-            }
 
             $lineState = $null
-            if ($line -match '"to"\s*:\s*"([^"]+)"') {
-                $lineState = $Matches[1]
+            if ($line -match '\[SessionManager\] task state transition') {
+                if ($line -match '"to"\s*:\s*"([^"]+)"') {
+                    $lineState = $Matches[1]
+                }
+                elseif ($line -match '\bto=([A-Za-z_-]+)') {
+                    $lineState = $Matches[1]
+                }
             }
-            elseif ($line -match '\bto=([A-Za-z_-]+)') {
-                $lineState = $Matches[1]
+            elseif ($line -match 'handlePost:\s+hasPrompt=true' -and $line -match 'messages=session/prompt') {
+                $lineState = "working"
+            }
+            elseif ($line -match '\[CodeBuddyCodeBackend\]\s+prompt\(\)\s+entry') {
+                $lineState = "working"
             }
 
             if (-not $lineState) {
@@ -299,10 +304,6 @@ function Get-WorkBuddyLogTaskState {
                 $latestState = $lineState
                 break
             }
-        }
-
-        if ($latestState) {
-            break
         }
     }
 

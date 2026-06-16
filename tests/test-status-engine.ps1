@@ -140,8 +140,12 @@ try {
     $logFile = Join-Path $logDir "workbuddyMainThread__test.log"
     [void](New-Item -ItemType Directory -Path $logDir -Force)
 
+    $promptLog = '[{0}] [Info] [ACP StreamManager] handlePost: hasPrompt=true, inFlightPromptCount=0, messages=session/prompt' -f ([datetime]::Now.ToString("yyyy/M/d HH:mm:ss.fff"))
+    Set-Content -LiteralPath $logFile -Value $promptLog -Encoding UTF8
+    Assert-State -Expected "working"
+
     $workingLog = '[{0}] [Info] [SessionManager] task state transition {{"sessionId":"test","signal":"working_started","from":"planning","to":"working","turnSeq":1}}' -f ([datetime]::Now.ToString("yyyy/M/d HH:mm:ss.fff"))
-    Set-Content -LiteralPath $logFile -Value $workingLog -Encoding UTF8
+    Add-Content -LiteralPath $logFile -Value $workingLog -Encoding UTF8
     Assert-State -Expected "working"
 
     $completedLog = '[{0}] [Info] [SessionManager] task state transition {{"sessionId":"test","signal":"turn_completed","from":"working","to":"completed","turnSeq":1}}' -f ([datetime]::Now.ToString("yyyy/M/d HH:mm:ss.fff"))
