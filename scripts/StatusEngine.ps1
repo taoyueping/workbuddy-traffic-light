@@ -1,0 +1,239 @@
+Set-StrictMode -Version Latest
+
+function Get-WorkBuddyHome {
+    if ($env:WORKBUDDY_HOME) {
+        return $env:WORKBUDDY_HOME
+    }
+
+    return (Join-Path $HOME ".workbuddy")
+}
+
+function Get-TailJsonLines {
+    param(
+        [Parameter(Mandatory)]
+        [string]$Path,
+
+        [int64]$MaxBytes = 2097152
+    )
+
+    $stream = [System.IO.File]::Open(
+        $Path,
+        [System.IO.FileMode]::Open,
+        [System.IO.FileAccess]::Read,
+        [System.IO.FileShare]::ReadWrite
+    )
+
+    try {
+        $skipPartialLine = $stream.Length -gt $MaxBytes
+        if ($skipPartialLine) {
+            [void]$stream.Seek(-$MaxBytes, [System.IO.SeekOrigin]::End)
+        }
+
+        $reader = [System.IO.StreamReader]::new($stream)
+        try {
+            if ($skipPartialLine) {
+                [void]$reader.ReadLine()
+            }
+
+            $lines = [System.Collections.Generic.List[string]]::new()
+            while (-not $reader.EndOfStream) {
+                $line = $reader.ReadLine()
+                if (-not [string]::IsNullOrWhiteSpace($line)) {
+                    $lines.Add($line)
+                }
+            }
+            return $lines
+        }
+        finally {
+            $reader.Dispose()
+        }
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
+function Test-RequiresApproval {
+    param(
+        [Parameter(Mandatory)]
+        $Payload
+    )
+
+    if ($Payload.name -in @("request_user_input", "item/tool/requestUserInput")) {
+        return $true
+    }
+
+    if (-not $Payload.arguments) {
+        return $false
+    }
+
+    try {
+        $arguments = $Payload.arguments | ConvertFrom-Json
+        return $arguments.sandbox_permissions -eq "require_escalated"
+    }
+    catch {
+        return $Payload.arguments -match '"sandbox_permissions"\s*:\s*"require_escalated"'
+    }
+}
+
+function Get-WorkBuddySessionState {
+    param(
+        [Parameter(Mandatory)]
+        [System.IO.FileInfo]$File
+    )
+
+    $active = $false
+    $errorState = $false
+    $pendingCalls = @{}
+    $lastEvent = $File.LastWriteTimeUtc
+
+    foreach ($line in (Get-TailJsonLines -Path $File.FullName)) {
+        try {
+            $record = $line | ConvertFrom-Json
+        }
+        catch {
+            continue
+        }
+
+        if ($record.timestamp) {
+            try {
+                $lastEvent = [datetime]::Parse($record.timestamp).ToUniversalTime()
+            }
+            catch {
+                # Keep the file timestamp when a record timestamp is malformed.
+            }
+        }
+
+        if ($record.type -eq "response_item") {
+            $payload = $record.payload
+
+            if ($payload.type -eq "message" -and $payload.role -eq "user") {
+                $active = $true
+                $errorState = $false
+                $pendingCalls = @{}
+                continue
+            }
+
+            if ($payload.type -eq "function_call") {
+                if ((Test-RequiresApproval -Payload $payload) -and $payload.call_id) {
+                    $pendingCalls[$payload.call_id] = $true
+                }
+                continue
+            }
+
+            if ($payload.type -eq "function_call_output" -and $payload.call_id) {
+                [void]$pendingCalls.Remove($payload.call_id)
+                continue
+            }
+
+            if (
+                $payload.type -eq "message" -and
+                $payload.role -eq "assistant" -and
+                $payload.phase -in @("final", "final_answer")
+            ) {
+                $active = $false
+                $pendingCalls = @{}
+                continue
+            }
+        }
+
+        if ($record.type -eq "event_msg") {
+            if ($record.payload.type -eq "task_started") {
+                $active = $true
+                $errorState = $false
+                $pendingCalls = @{}
+                continue
+            }
+
+            if ($record.payload.type -eq "task_complete") {
+                $active = $false
+                $pendingCalls = @{}
+                continue
+            }
+
+            if ($record.payload.type -in @("turn_aborted", "turn_error", "error")) {
+                $active = $false
+                $errorState = $true
+                $pendingCalls = @{}
+            }
+        }
+    }
+
+    [pscustomobject]@{
+        Path = $File.FullName
+        Active = $active
+        Approval = $active -and $pendingCalls.Count -gt 0
+        Error = $errorState
+        LastEvent = $lastEvent
+    }
+}
+
+function Get-WorkBuddyTrafficState {
+    param(
+        [string]$WorkBuddyHome = (Get-WorkBuddyHome),
+        [int]$MaxSessions = 12,
+        [int]$ConcurrentWindowMinutes = 3
+    )
+
+    $sessionsRoot = Join-Path $WorkBuddyHome "sessions"
+    if (-not (Test-Path -LiteralPath $sessionsRoot)) {
+        return [pscustomobject]@{
+            State = "offline"
+            Label = "WorkBuddy not detected"
+            ActiveCount = 0
+            ApprovalCount = 0
+            SessionCount = 0
+        }
+    }
+
+    $files = @(
+        Get-ChildItem -LiteralPath $sessionsRoot -Filter "*.jsonl" -File -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First $MaxSessions
+    )
+
+    if ($files.Count -eq 0) {
+        return [pscustomobject]@{
+            State = "offline"
+            Label = "No WorkBuddy sessions"
+            ActiveCount = 0
+            ApprovalCount = 0
+            SessionCount = 0
+        }
+    }
+
+    # Old interrupted threads may never contain a final response. Treat only the
+    # newest cluster of files as concurrently relevant to the desktop status.
+    $newestWrite = $files[0].LastWriteTimeUtc
+    $cutoff = $newestWrite.AddMinutes(-$ConcurrentWindowMinutes)
+    $relevantFiles = @($files | Where-Object { $_.LastWriteTimeUtc -ge $cutoff })
+    $states = @($relevantFiles | ForEach-Object { Get-WorkBuddySessionState -File $_ })
+    $approvalCount = @($states | Where-Object Approval).Count
+    $activeCount = @($states | Where-Object Active).Count
+    $errorCount = @($states | Where-Object Error).Count
+
+    if ($approvalCount -gt 0) {
+        $state = "approval"
+        $label = "Approval needed"
+    }
+    elseif ($activeCount -gt 0) {
+        $state = "working"
+        $label = "WorkBuddy working"
+    }
+    elseif ($errorCount -gt 0) {
+        $state = "error"
+        $label = "Run ended with error"
+    }
+    else {
+        $state = "complete"
+        $label = "Run complete"
+    }
+
+    return [pscustomobject]@{
+        State = $state
+        Label = $label
+        ActiveCount = $activeCount
+        ApprovalCount = $approvalCount
+        SessionCount = $states.Count
+    }
+}

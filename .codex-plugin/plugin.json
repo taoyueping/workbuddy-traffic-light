@@ -1,0 +1,34 @@
+{
+  "name": "workbuddy-traffic-light",
+  "version": "0.1.0",
+  "description": "A floating traffic light that shows WorkBuddy working, approval, and completion states.",
+  "author": {
+    "name": "taoyueping"
+  },
+  "license": "MIT",
+  "keywords": [
+    "workbuddy",
+    "status",
+    "traffic-light",
+    "approval",
+    "windows"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "WorkBuddy Traffic Light",
+    "shortDescription": "See working, approval, and completion states",
+    "longDescription": "Shows a small always-on-top traffic light for WorkBuddy. Yellow means WorkBuddy is working, flashing yellow means approval is required, green means the run is complete, and red means no readable session is available.",
+    "developerName": "taoyueping",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive"
+    ],
+    "defaultPrompt": [
+      "Start WorkBuddy Traffic Light",
+      "Stop WorkBuddy Traffic Light",
+      "Enable WorkBuddy Traffic Light startup"
+    ],
+    "brandColor": "#F5B82E",
+    "composerIcon": "./assets/traffic-light.svg"
+  }
+}
