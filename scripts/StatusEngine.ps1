@@ -284,6 +284,18 @@ function Get-WorkBuddyLogTaskState {
             elseif ($line -match '\[CodeBuddyCodeBackend\]\s+prompt\(\)\s+entry') {
                 $lineState = "working"
             }
+            elseif ($line -match '\[ModelProvider\].*Stream completed') {
+                $lineState = "completed"
+            }
+            elseif ($line -match '\[AcpView\].*Prompt completed') {
+                $lineState = "completed"
+            }
+            elseif ($line -match '\[ACP Agent\]\s+prompt\(\)\s+completed') {
+                $lineState = "completed"
+            }
+            elseif ($line -match 'turn_completed') {
+                $lineState = "completed"
+            }
 
             if (-not $lineState) {
                 continue

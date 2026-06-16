@@ -152,6 +152,15 @@ try {
     Add-Content -LiteralPath $logFile -Value $completedLog -Encoding UTF8
     Assert-State -Expected "complete"
 
+    $streamOnlyLog = Join-Path $logDir "workbuddy-stream-only.log"
+    $streamPromptLog = '[{0}] [Info] [ACP StreamManager] handlePost: hasPrompt=true, inFlightPromptCount=0, messages=session/prompt' -f ([datetime]::Now.ToString("yyyy/M/d HH:mm:ss.fff"))
+    Set-Content -LiteralPath $streamOnlyLog -Value $streamPromptLog -Encoding UTF8
+    Assert-State -Expected "working"
+
+    $streamCompletedLog = '[{0}] [Info] [ModelProvider]  [ModelProvider] Stream completed: agent=cli, requestId=test, chunks=1, bytes=1, elapsed=1ms' -f ([datetime]::Now.ToString("yyyy/M/d HH:mm:ss.fff"))
+    Add-Content -LiteralPath $streamOnlyLog -Value $streamCompletedLog -Encoding UTF8
+    Assert-State -Expected "complete"
+
     Write-Output "Status engine tests passed."
 }
 finally {
