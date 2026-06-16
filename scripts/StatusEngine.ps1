@@ -236,6 +236,82 @@ function Get-WorkBuddyNativeSessionState {
     }
 }
 
+function Get-WorkBuddyLogTaskState {
+    param(
+        [Parameter(Mandatory)]
+        [string]$WorkBuddyHome,
+
+        [int]$MaxLogFiles = 10,
+        [int]$TaskWindowMinutes = 120
+    )
+
+    $logsRoot = Join-Path $WorkBuddyHome "logs"
+    if (-not (Test-Path -LiteralPath $logsRoot)) {
+        return [pscustomobject]@{
+            Detected = $false
+            Active = $false
+            Approval = $false
+            Error = $false
+            LastEvent = [datetime]::MinValue
+        }
+    }
+
+    $latestState = $null
+    $latestEvent = [datetime]::MinValue
+    $logFiles = @(
+        Get-ChildItem -LiteralPath $logsRoot -Filter "*.log" -File -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First $MaxLogFiles
+    )
+
+    foreach ($file in $logFiles) {
+        foreach ($line in (Get-TailJsonLines -Path $file.FullName)) {
+            if ($line -notmatch '\[SessionManager\] task state transition') {
+                continue
+            }
+
+            $lineState = $null
+            if ($line -match '"to"\s*:\s*"([^"]+)"') {
+                $lineState = $Matches[1]
+            }
+            elseif ($line -match '\bto=([A-Za-z_-]+)') {
+                $lineState = $Matches[1]
+            }
+
+            if (-not $lineState) {
+                continue
+            }
+
+            $lineEvent = $file.LastWriteTimeUtc
+            if ($line -match '^\[(?<timestamp>[^\]]+)\]') {
+                try {
+                    $lineEvent = [datetime]::Parse($Matches["timestamp"]).ToUniversalTime()
+                }
+                catch {
+                    # Keep the file timestamp when the log timestamp is malformed.
+                }
+            }
+
+            if ($lineEvent -ge $latestEvent) {
+                $latestEvent = $lineEvent
+                $latestState = $lineState
+            }
+        }
+    }
+
+    $fresh = $latestEvent -ge ([datetime]::UtcNow.AddMinutes(-$TaskWindowMinutes))
+    $active = $fresh -and $latestState -in @("pending", "planning", "working")
+    $errorState = $fresh -and $latestState -in @("failed", "error", "aborted", "cancelled", "canceled")
+
+    [pscustomobject]@{
+        Detected = $null -ne $latestState
+        Active = $active
+        Approval = $false
+        Error = $errorState
+        LastEvent = $latestEvent
+    }
+}
+
 function Get-WorkBuddyTrafficState {
     param(
         [string]$WorkBuddyHome = (Get-WorkBuddyHome),
@@ -289,6 +365,10 @@ function Get-WorkBuddyTrafficState {
             Get-WorkBuddySessionState -File $_
         }
     })
+    $logState = Get-WorkBuddyLogTaskState -WorkBuddyHome $WorkBuddyHome
+    if ($logState.Detected) {
+        $states = @($states + $logState)
+    }
     $detectedCount = @($states | Where-Object Detected).Count
     $approvalCount = @($states | Where-Object Approval).Count
     $activeCount = @($states | Where-Object Active).Count

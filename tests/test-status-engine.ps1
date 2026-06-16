@@ -136,6 +136,18 @@ try {
 
     Assert-State -Expected "complete"
 
+    $logDir = Join-Path $testRoot "logs\2026-06-16"
+    $logFile = Join-Path $logDir "workbuddyMainThread__test.log"
+    [void](New-Item -ItemType Directory -Path $logDir -Force)
+
+    $workingLog = '[{0}] [Info] [SessionManager] task state transition {{"sessionId":"test","signal":"working_started","from":"planning","to":"working","turnSeq":1}}' -f ([datetime]::Now.ToString("yyyy/M/d HH:mm:ss.fff"))
+    Set-Content -LiteralPath $logFile -Value $workingLog -Encoding UTF8
+    Assert-State -Expected "working"
+
+    $completedLog = '[{0}] [Info] [SessionManager] task state transition {{"sessionId":"test","signal":"turn_completed","from":"working","to":"completed","turnSeq":1}}' -f ([datetime]::Now.ToString("yyyy/M/d HH:mm:ss.fff"))
+    Add-Content -LiteralPath $logFile -Value $completedLog -Encoding UTF8
+    Assert-State -Expected "complete"
+
     Write-Output "Status engine tests passed."
 }
 finally {
