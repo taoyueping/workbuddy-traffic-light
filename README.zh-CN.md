@@ -2,8 +2,6 @@
 
 一个用于 WorkBuddy 的 Windows 桌面状态灯。它会显示在桌面右上角并保持置顶，让你不用反复切回 WorkBuddy 窗口，也能看到任务正在运行、等待批准，还是已经完成。
 
-![WorkBuddy 红绿灯预览](assets/workbuddy-traffic-light-preview.png)
-
 [English](README.md)
 
 ## 状态说明
