@@ -8,29 +8,35 @@ A small Windows always-on-top traffic light for WorkBuddy.
 
 - Windows 10 or later
 - Windows PowerShell 5.1
-- WorkBuddy session files under `%USERPROFILE%\.workbuddy\sessions`
+- WorkBuddy local status files under `%USERPROFILE%\.workbuddy`
 
 ## Release
 
-- 用户可以直接从 GitHub Releases 页面下载最新版本。
-- 下载后解压或直接运行内置的 PowerShell 脚本即可使用。
-- 如果你只是想快速安装或测试，不需要克隆完整仓库。
+- Download the latest packaged build from GitHub Releases.
+- If you run from source, clone the repository and use the scripts below.
+- After status-detection changes, packaged users should install the latest release.
 
-## Session Directory
+## Status Sources
 
-The monitor reads WorkBuddy session files under:
+The monitor reads WorkBuddy's local, read-only status files:
+
+- `%USERPROFILE%\.workbuddy\projects\**\*.jsonl`: primary source for live task activity.
+- `%USERPROFILE%\.workbuddy\sessions\*.json`: WorkBuddy desktop heartbeat/session detection.
+- `%USERPROFILE%\.workbuddy\logs\**\*.log`: fallback source for prompt and stream events.
+
+You can override the WorkBuddy home directory with:
 
 ```text
-%WORKBUDDY_HOME%\sessions
+%WORKBUDDY_HOME%
 ```
 
 If `WORKBUDDY_HOME` is not set, it falls back to:
 
 ```text
-%USERPROFILE%\.workbuddy\sessions
+%USERPROFILE%\.workbuddy
 ```
 
-Current WorkBuddy desktop builds write native `*.json` heartbeat session files there. The monitor also supports Codex-style `*.jsonl` event logs when present.
+The monitor keeps the light yellow while project events show active reasoning or tool calls, including `function_call` events such as web page fetching. It returns to green after the project event stream records an assistant response.
 
 ## Lights
 
@@ -53,7 +59,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-traffic-
 
 The traffic light appears near the top-right corner of the desktop. Drag it with the left mouse button to move it. Right-click the light and choose `Exit` to close it.
 
-If the light stays red, make sure WorkBuddy is running and writing session files under `%WORKBUDDY_HOME%\sessions` or `%USERPROFILE%\.workbuddy\sessions`.
+If the light stays red, make sure WorkBuddy is running and writing files under `%WORKBUDDY_HOME%` or `%USERPROFILE%\.workbuddy`.
 
 ## Scripts
 

@@ -23,29 +23,35 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-traffic-
 
 红绿灯会显示在桌面右上角附近。按住鼠标左键可以拖动位置；右键点击红绿灯，选择 `Exit` 即可退出。
 
-如果红灯一直亮，请确认 WorkBuddy 正在把 JSONL 会话文件写入 `%WORKBUDDY_HOME%\sessions` 或 `%USERPROFILE%\.workbuddy\sessions`。
+如果红灯一直亮，请确认 WorkBuddy 正在运行，并且正在写入 `%WORKBUDDY_HOME%` 或 `%USERPROFILE%\.workbuddy` 下的本地状态文件。
 
 ## 运行要求
 
 - Windows 10 或更高版本
 - Windows PowerShell 5.1
-- WorkBuddy 会话文件位于 `%USERPROFILE%\.workbuddy\sessions`
+- WorkBuddy 本地状态文件位于 `%USERPROFILE%\.workbuddy`
 
-## 会话目录
+## 状态来源
 
-程序默认读取 WorkBuddy 会话文件：
+程序只读 WorkBuddy 的本地状态文件：
+
+- `%USERPROFILE%\.workbuddy\projects\**\*.jsonl`：主要来源，用来判断任务是否正在运行。
+- `%USERPROFILE%\.workbuddy\sessions\*.json`：WorkBuddy 桌面端心跳/会话检测。
+- `%USERPROFILE%\.workbuddy\logs\**\*.log`：备用来源，用来补充 prompt 和模型流事件。
+
+可以通过环境变量覆盖 WorkBuddy 主目录：
 
 ```text
-%WORKBUDDY_HOME%\sessions
+%WORKBUDDY_HOME%
 ```
 
 如果没有设置 `WORKBUDDY_HOME`，则读取：
 
 ```text
-%USERPROFILE%\.workbuddy\sessions
+%USERPROFILE%\.workbuddy
 ```
 
-当前 WorkBuddy 桌面版会在这里写入原生 `*.json` 心跳会话文件。程序也兼容存在时的 Codex 风格 `*.jsonl` 事件日志。
+程序会优先根据项目事件流判断状态：当出现 reasoning、工具调用或网页获取等 `function_call` 事件时保持黄灯；当项目事件流写入 assistant 回复后回到绿灯。
 
 ## 启动和关闭
 
