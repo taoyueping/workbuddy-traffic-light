@@ -161,6 +161,28 @@ try {
     Add-Content -LiteralPath $streamOnlyLog -Value $streamCompletedLog -Encoding UTF8
     Assert-State -Expected "complete"
 
+    $projectDir = Join-Path $testRoot "projects\workspace"
+    $projectFile = Join-Path $projectDir "turn.jsonl"
+    [void](New-Item -ItemType Directory -Path $projectDir -Force)
+    $projectBase = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    @{
+        id = "user"
+        timestamp = $projectBase + 1000
+        type = "message"
+        role = "user"
+        content = @()
+    } | ConvertTo-Json -Compress -Depth 6 | Set-Content -LiteralPath $projectFile -Encoding UTF8
+    Assert-State -Expected "working"
+
+    @{
+        id = "assistant"
+        timestamp = $projectBase + 2000
+        type = "message"
+        role = "assistant"
+        content = @()
+    } | ConvertTo-Json -Compress -Depth 6 | Add-Content -LiteralPath $projectFile -Encoding UTF8
+    Assert-State -Expected "complete"
+
     Write-Output "Status engine tests passed."
 }
 finally {

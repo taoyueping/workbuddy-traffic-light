@@ -332,6 +332,88 @@ function Get-WorkBuddyLogTaskState {
     }
 }
 
+function Get-WorkBuddyProjectTaskState {
+    param(
+        [Parameter(Mandatory)]
+        [string]$WorkBuddyHome,
+
+        [int]$MaxProjectFiles = 6,
+        [int]$TaskWindowMinutes = 120
+    )
+
+    $projectsRoot = Join-Path $WorkBuddyHome "projects"
+    if (-not (Test-Path -LiteralPath $projectsRoot)) {
+        return [pscustomobject]@{
+            Detected = $false
+            Active = $false
+            Approval = $false
+            Error = $false
+            LastEvent = [datetime]::MinValue
+        }
+    }
+
+    $latestState = $null
+    $latestEvent = [datetime]::MinValue
+    $projectFiles = @(
+        Get-ChildItem -LiteralPath $projectsRoot -Filter "*.jsonl" -File -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTimeUtc -Descending |
+            Select-Object -First $MaxProjectFiles
+    )
+
+    foreach ($file in $projectFiles) {
+        $lines = @(Get-TailJsonLines -Path $file.FullName -MaxBytes 262144)
+        for ($index = $lines.Count - 1; $index -ge 0; $index--) {
+            $line = $lines[$index]
+            $lineState = $null
+
+            if ($line -match '"type"\s*:\s*"message"' -and $line -match '"role"\s*:\s*"assistant"') {
+                $lineState = "completed"
+            }
+            elseif ($line -match '"type"\s*:\s*"message"' -and $line -match '"role"\s*:\s*"user"') {
+                $lineState = "working"
+            }
+            elseif ($line -match '"type"\s*:\s*"function_call_result"') {
+                $lineState = "working"
+            }
+            elseif ($line -match '"type"\s*:\s*"function_call"') {
+                $lineState = "working"
+            }
+            elseif ($line -match '"type"\s*:\s*"reasoning"') {
+                $lineState = "working"
+            }
+
+            if (-not $lineState) {
+                continue
+            }
+
+            $lineEvent = $file.LastWriteTimeUtc
+            if ($line -match '"timestamp"\s*:\s*(\d{12,})') {
+                try {
+                    $lineEvent = ConvertFrom-UnixMilliseconds -Milliseconds ([int64]$Matches[1])
+                }
+                catch {
+                    # Keep the file timestamp when timestamp parsing fails.
+                }
+            }
+
+            if ($lineEvent -ge $latestEvent) {
+                $latestEvent = $lineEvent
+                $latestState = $lineState
+                break
+            }
+        }
+    }
+
+    $fresh = $latestEvent -ge ([datetime]::UtcNow.AddMinutes(-$TaskWindowMinutes))
+    [pscustomobject]@{
+        Detected = $null -ne $latestState
+        Active = $fresh -and $latestState -eq "working"
+        Approval = $false
+        Error = $false
+        LastEvent = $latestEvent
+    }
+}
+
 function Get-WorkBuddyTrafficState {
     param(
         [string]$WorkBuddyHome = (Get-WorkBuddyHome),
@@ -386,8 +468,14 @@ function Get-WorkBuddyTrafficState {
         }
     })
     $logState = Get-WorkBuddyLogTaskState -WorkBuddyHome $WorkBuddyHome
-    if ($logState.Detected) {
-        $states = @($states + $logState)
+    $projectState = Get-WorkBuddyProjectTaskState -WorkBuddyHome $WorkBuddyHome
+    $taskStates = @(@($logState, $projectState) | Where-Object Detected)
+    if ($projectState.Detected -and $projectState.Active) {
+        $states = @($states + $projectState)
+    }
+    elseif ($taskStates.Count -gt 0) {
+        $latestTaskState = @($taskStates | Sort-Object LastEvent -Descending | Select-Object -First 1)[0]
+        $states = @($states + $latestTaskState)
     }
     $detectedCount = @($states | Where-Object Detected).Count
     $approvalCount = @($states | Where-Object Approval).Count
